@@ -1,0 +1,75 @@
+[gd_scene format=3 uid="uid://4a0ig2qbw087"]
+
+[ext_resource type="Script" uid="uid://b5glcsocrk4o1" path="res://calculator.gd" id="1_calc"]
+[ext_resource type="Script" uid="uid://lalj552vrbuc" path="res://random_floor.gd" id="2_0xm2m"]
+[ext_resource type="Script" uid="uid://cjrkj0uilohdx" path="res://random_boss.gd" id="3_h2yge"]
+[ext_resource type="Script" uid="uid://dpyl07e77rmfl" path="res://ambient_particles.gd" id="4_1bvp3"]
+[ext_resource type="Script" uid="uid://b54efakj81fvr" path="res://boss_aura.gd" id="4_kek77"]
+[ext_resource type="Script" uid="uid://2mxjqnkchnpt" path="res://monster_shadow.gd" id="5_4c57u"]
+[ext_resource type="Script" uid="uid://bap64rfq1efgk" path="res://battle_controller.gd" id="5_lquwl"]
+[ext_resource type="Script" uid="uid://cgesk3wb844x3" path="res://night_sky.gd" id="6_7mycd"]
+[ext_resource type="Script" uid="uid://dgimkcc0mejbb" path="res://monster_dialogue.gd" id="7_272bh"]
+[ext_resource type="Script" uid="uid://bntgmv87aav61" path="res://encounter_director.gd" id="8_5vw27"]
+
+[node name="CalculatorGame" type="Control" unique_id=618217697]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_calc")
+
+[node name="Floor" type="TextureRect" parent="." unique_id=2111976046]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+script = ExtResource("2_0xm2m")
+
+[node name="Boss" type="TextureRect" parent="." unique_id=1803628957]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+script = ExtResource("3_h2yge")
+
+[node name="BossAura" type="Control" parent="Boss" unique_id=135216749]
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+script = ExtResource("4_kek77")
+
+[node name="MonsterShadow" type="Control" parent="Boss" unique_id=1259456643]
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+script = ExtResource("5_4c57u")
+
+[node name="AmbientParticles" type="Control" parent="." unique_id=1021902810]
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+script = ExtResource("4_1bvp3")
+
+[node name="BattleController" type="Control" parent="." unique_id=1302085988]
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+script = ExtResource("5_lquwl")
+
+[node name="NightSky" type="Control" parent="." unique_id=1993868268]
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+script = ExtResource("6_7mycd")
+
+[node name="MonsterDialogue" type="Control" parent="." unique_id=681815878]
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+script = ExtResource("7_272bh")
+
+[node name="EncounterDirector" type="Control" parent="." unique_id=1750545419]
+anchors_preset = 0
+offset_right = 40.0
+offset_bottom = 40.0
+script = ExtResource("8_5vw27")
