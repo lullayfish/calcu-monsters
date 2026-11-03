@@ -1,6 +1,6 @@
 extends Control
 
-const ROUND_SECONDS := 120.0
+const ROUND_SECONDS := 60.0
 const FONT = preload("res://assets/Silkscreen-Regular.ttf")
 const SYMBOL_FONT = preload("res://assets/NotoSansSymbols-VariableFont_wght.ttf")
 const MONSTER_DEFEAT_SOUND = preload("res://assets/universfield-impact-thud-291047.mp3")
@@ -31,7 +31,7 @@ var timer_label: Label
 var monster_label: Label
 var target_heading_label: Label
 var target_value_label: Label
-var rule_label: RichTextLabel
+var rule_label: HBoxContainer
 var status_label: Label
 
 var finishing_round := false
@@ -45,6 +45,8 @@ var skip_key_panel: Panel
 var round_timer: Timer
 var damage_overlay: ColorRect
 var damage_tween: Tween
+var bestiary_view
+var bestiary_button: Button
 
 
 func _ready() -> void:
@@ -52,6 +54,8 @@ func _ready() -> void:
 	mouse_filter = Control.MOUSE_FILTER_IGNORE
 	z_index = 8
 
+	bestiary_view = preload("res://bestiary.gd").new()
+	add_child(bestiary_view)
 	_create_ui()
 	var damage_sound_player := AudioStreamPlayer.new()
 	damage_sound_player.name = "PlayerDamageSound"
@@ -115,17 +119,12 @@ func _create_ui() -> void:
 
 	encounter_label = _make_label(Vector2(18, 9), Vector2(410, 24), 18, Color("#F3D8ED"))
 	monster_label = _make_label(Vector2(18, 38), Vector2(490, 29), 19, Color("#FFF6EA"))
-	rule_label = RichTextLabel.new()
-	rule_label.position = Vector2(18, 65)
+	# Separate labels keep the larger mathematical symbols visually aligned.
+	rule_label = HBoxContainer.new()
+	rule_label.position = Vector2(18, 70)
 	rule_label.size = Vector2(490, 32)
-	rule_label.bbcode_enabled = false
-	rule_label.scroll_active = false
-	rule_label.fit_content = false
-	rule_label.autowrap_mode = TextServer.AUTOWRAP_OFF
+	rule_label.add_theme_constant_override("separation", 0)
 	rule_label.mouse_filter = Control.MOUSE_FILTER_IGNORE
-	rule_label.add_theme_font_override("normal_font", FONT)
-	rule_label.add_theme_font_size_override("normal_font_size", 17)
-	rule_label.add_theme_color_override("default_color", Color("#E7D8EE"))
 	add_child(rule_label)
 	status_label = _make_label(Vector2(18, 99), Vector2(490, 22), 14, Color("#FFDFAF"))
 
@@ -168,6 +167,40 @@ func _create_ui() -> void:
 
 	# Golden skip counter, displayed beside the hearts.
 	_update_skip_display()
+	_create_bestiary_button()
+
+# Small book button beside the three golden skip tickets.
+func _create_bestiary_button() -> void:
+	bestiary_button = Button.new()
+	bestiary_button.text = "BESTIARY"
+	bestiary_button.position = Vector2(404, 147)
+	bestiary_button.size = Vector2(151, 30)
+	bestiary_button.mouse_filter = Control.MOUSE_FILTER_STOP
+	bestiary_button.add_theme_font_override("font", FONT)
+	bestiary_button.add_theme_font_size_override("font_size", 14)
+	bestiary_button.add_theme_color_override("font_color", Color("#BFE8FF"))
+	bestiary_button.add_theme_color_override("font_hover_color", Color("#FFF3D6"))
+	bestiary_button.add_theme_color_override("font_pressed_color", Color("#FFF3D6"))
+	var button_style := StyleBoxFlat.new()
+	button_style.bg_color = Color("#49395E")
+	button_style.border_color = Color("#B9A7D1")
+	button_style.set_border_width_all(2)
+	button_style.set_corner_radius_all(7)
+	button_style.set_content_margin_all(0)
+	bestiary_button.add_theme_stylebox_override("normal", button_style)
+	var hover_style := button_style.duplicate() as StyleBoxFlat
+	hover_style.bg_color = Color("#67547F")
+	bestiary_button.add_theme_stylebox_override("hover", hover_style)
+	bestiary_button.add_theme_stylebox_override("pressed", hover_style)
+	bestiary_button.pressed.connect(_open_bestiary)
+	add_child(bestiary_button)
+
+
+func _open_bestiary() -> void:
+	if finishing_round or lives <= 0:
+		return
+	bestiary_view.open_book(round_timer, get_parent())
+
 
 func _make_label(at: Vector2, dimensions: Vector2, font_size: int, colour: Color) -> Label:
 	var label := Label.new()
@@ -314,7 +347,7 @@ func _start_encounter(_fade_in: bool = false) -> void:
 			floor_node.modulate.a = 1.0
 
 		finishing_round = false
-		round_timer.start()
+		round_timer.start(120.0 if encounter % 5 == 0 else 60.0)
 		return
 
 	var fade_in_tween := create_tween()
@@ -340,7 +373,7 @@ func _start_encounter(_fade_in: bool = false) -> void:
 
 
 	finishing_round = false
-	round_timer.start()
+	round_timer.start(120.0 if encounter % 5 == 0 else 60.0)
 
 func _refresh_ui() -> void:
 	encounter_label.text = "ENCOUNTER %02d" % encounter
@@ -357,17 +390,53 @@ func _refresh_ui() -> void:
 	_set_rule_text(str(current_challenge["instruction"]))
 	status_label.text = "PRESS = TO ATTACK  •  SHIFT TO SKIP"
 
-# Use Noto for every mathematical symbol in the battle prompt,
-# while keeping Silkscreen for all letters and numbers.
+# Keep Silkscreen words and large Noto symbols on the same visual line.
+# A separate symbol label allows a small vertical nudge without moving the words.
 func _set_rule_text(instruction: String) -> void:
-	rule_label.clear()
+	for child in rule_label.get_children():
+		rule_label.remove_child(child)
+		child.queue_free()
+
+	var normal_text := ""
 	for character in instruction:
 		if character in ["+", "−", "-", "×", "÷", "=", "%", "±", "*", "/", "•"]:
-			rule_label.push_font(SYMBOL_FONT)
-			rule_label.add_text(character)
-			rule_label.pop()
+			if not normal_text.is_empty():
+				_add_rule_piece(normal_text, false)
+				normal_text = ""
+			_add_rule_piece(character, true)
 		else:
-			rule_label.add_text(character)
+			normal_text += character
+
+	if not normal_text.is_empty():
+		_add_rule_piece(normal_text, false)
+
+
+func _add_rule_piece(value: String, symbol: bool) -> void:
+	var font: Font = SYMBOL_FONT if symbol else FONT
+	var font_size: int = 25 if symbol else 17
+	var piece_width: float = ceilf(font.get_string_size(value, HORIZONTAL_ALIGNMENT_LEFT, -1, font_size).x) + 2.0
+
+	var slot := Control.new()
+	slot.custom_minimum_size = Vector2(piece_width, 32.0)
+	slot.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	rule_label.add_child(slot)
+
+	var piece := Label.new()
+	piece.text = value
+	# Noto math glyphs have different visible positions inside their font line.
+	# Align them with the Silkscreen words without changing the rule's layout.
+	var symbol_y := 0.0
+	if symbol:
+		symbol_y = -13.0 if value in ["−", "-"] else -7.0
+	piece.position = Vector2(0.0, symbol_y - 1.0 if symbol else 1.0)
+	piece.size = Vector2(piece_width, 32.0)
+	piece.horizontal_alignment = HORIZONTAL_ALIGNMENT_LEFT
+	piece.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	piece.add_theme_font_override("font", font)
+	piece.add_theme_font_size_override("font_size", font_size)
+	piece.add_theme_color_override("font_color", Color("#FFE7A8") if symbol else Color("#BFE8FF"))
+	piece.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	slot.add_child(piece)
 
 
 func _get_boss_name() -> String:
@@ -526,6 +595,12 @@ func _win_encounter() -> void:
 	status_label.text = "%s defeated!" % current_boss_name
 	$MonsterDefeatSound.play()
 
+	# A species is collected only when defeated, never when skipped or timed out.
+	var defeated_sprite := get_parent().get_node_or_null("Boss") as TextureRect
+	var newly_discovered := false
+	if defeated_sprite != null and defeated_sprite.texture != null:
+		newly_discovered = bestiary_view.register_defeat(defeated_sprite.texture)
+
 	if encounter % 5 == 0:
 		_switch_boss_music(false)
 
@@ -548,10 +623,49 @@ func _win_encounter() -> void:
 		shake.tween_property(boss_node, "position", original_position, 0.06)
 		await shake.finished
 
+	if newly_discovered:
+		await _show_bestiary_discovery(boss_node)
+
+	# Celebrate the first full collection, then allow the run to continue.
+	if newly_discovered and bestiary_view.is_complete() and not bestiary_view.completion_seen:
+		bestiary_view.show_completion()
+		return
+
 	# Swaps the boss and floor while the old boss is invisible,
 	# then fades in the new boss before starting the next timer.
 	await _fade_out_battlefield()
 	_start_encounter()
+
+
+# Brief reward above the defeated monster before the next encounter fades in.
+func _show_bestiary_discovery(monster: Control) -> void:
+	if monster == null:
+		return
+	var popup := Label.new()
+	popup.text = "+ ADDED TO BESTIARY!"
+	popup.size = Vector2(365, 48)
+	popup.position = Vector2(
+		clampf(monster.global_position.x + monster.size.x * 0.5 - 182.5, 15.0, 480.0),
+		maxf(190.0, monster.global_position.y - 58.0)
+	)
+	popup.horizontal_alignment = HORIZONTAL_ALIGNMENT_CENTER
+	popup.vertical_alignment = VERTICAL_ALIGNMENT_CENTER
+	popup.add_theme_font_override("font", FONT)
+	popup.add_theme_font_size_override("font_size", 24)
+	popup.add_theme_color_override("font_color", Color("#B8F2C2"))
+	popup.add_theme_color_override("font_outline_color", Color("#2D2440"))
+	popup.add_theme_constant_override("outline_size", 5)
+	popup.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	popup.modulate.a = 0.0
+	# Parent is the full-screen calculator scene so positions remain screen-relative.
+	get_parent().add_child(popup)
+	popup.z_index = 20
+	var animation := create_tween()
+	animation.tween_property(popup, "modulate:a", 1.0, 0.6)
+	animation.tween_interval(1.2)
+	animation.tween_property(popup, "modulate:a", 0.0, 0.6)
+	await animation.finished
+	popup.queue_free()
 
 
 func _skip_encounter() -> void:
@@ -749,6 +863,8 @@ func _lose_life() -> void:
 		_show_game_over_curtains()
 
 func _unhandled_key_input(event: InputEvent) -> void:
+	if bestiary_view != null and bestiary_view.visible:
+		return
 	if not event is InputEventKey:
 		return
 

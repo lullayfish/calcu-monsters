@@ -279,10 +279,10 @@ func _build_solution(
 		floori(float(round_number - 1) / 5.0)
 	)
 
-	var growth: int = mini(stage, 20)
+	var growth: int = mini(floori(float(stage) * 0.75), 20)
 
 	var base: int
-	var factor: int
+	var factor: int = rng.randi_range(2, 5 + mini(4, growth))
 	var divisor: int
 	var addend: int
 	var subtrahend: int
@@ -393,15 +393,39 @@ func _build_solution(
 func validate(raw_expression: String, result: float, challenge: Dictionary) -> bool:
 	if absf(result - float(challenge["target"])) > 0.000001:
 		return false
+
 	var allowed: String = challenge["operators"]
+	var used_operators := ""
+
+	for i in range(raw_expression.length()):
+		var character := raw_expression.substr(i, 1)
+
+		if character == "−":
+			# A minus sign at the beginning or immediately
+			# after another operator means a negative number.
+			var is_negative_sign := i == 0
+
+			if i > 0:
+				var previous := raw_expression.substr(i - 1, 1)
+				is_negative_sign = previous in ["+", "−", "×", "÷"]
+
+			if not is_negative_sign:
+				used_operators += "−"
+
+		elif character in ["+", "×", "÷"]:
+			used_operators += character
+
 	for op in ["+", "−", "×", "÷"]:
-		var used: bool = raw_expression.contains(op)
-		if used != allowed.contains(op):
+		if used_operators.contains(op) != allowed.contains(op):
 			return false
+
 	var required: String = challenge["required_digit"]
 	var forbidden: String = challenge["forbidden_digit"]
+
 	if required != "" and not raw_expression.contains(required):
 		return false
+
 	if forbidden != "" and raw_expression.contains(forbidden):
 		return false
+
 	return true

@@ -318,8 +318,8 @@ func _calculate() -> void:
 	just_calculated = true
 
 func _evaluate_expression(raw: String) -> Variant:
-	# Evaluate strictly left to right.
-	# Example: 54−27×2 = (54−27)×2 = 54.
+	# Standard order of operations: multiplication and division first.
+	# Operators of equal priority are evaluated from left to right.
 	var clean := raw.replace("×", "*").replace("÷", "/").replace("−", "-")
 	clean = clean.replace(" ", "")
 
@@ -329,43 +329,55 @@ func _evaluate_expression(raw: String) -> Variant:
 	var number_regex := RegEx.new()
 	number_regex.compile("-?(?:[0-9]+(?:\\.[0-9]*)?|\\.[0-9]+)")
 
+	var values: Array[float] = []
+	var operators: Array[String] = []
 	var cursor := 0
 	var first := number_regex.search(clean, cursor)
 
 	if first == null or first.get_start() != cursor:
 		return null
 
-	var result := float(first.get_string())
+	values.append(float(first.get_string()))
 	cursor = first.get_end()
 
 	while cursor < clean.length():
 		var operator := clean.substr(cursor, 1)
-
 		if not operator in ["+", "-", "*", "/"]:
 			return null
-
+		operators.append(operator)
 		cursor += 1
 
 		var next_number := number_regex.search(clean, cursor)
-
 		if next_number == null or next_number.get_start() != cursor:
 			return null
-
-		var number := float(next_number.get_string())
+		values.append(float(next_number.get_string()))
 		cursor = next_number.get_end()
 
-		match operator:
-			"+":
-				result += number
-			"-":
-				result -= number
-			"*":
-				result *= number
-			"/":
-				if is_zero_approx(number):
-					return null
-				result /= number
+	# First pass: multiplication and division, left to right.
+	var i := 0
+	while i < operators.size():
+		var operator: String = operators[i]
+		if operator == "*" or operator == "/":
+			var left: float = values[i]
+			var right: float = values[i + 1]
+			if operator == "/" and is_zero_approx(right):
+				return null
+			var combined: float = left * right if operator == "*" else left / right
+			if not is_finite(combined) or absf(combined) > 999999999999.0:
+				return null
+			values[i] = combined
+			values.remove_at(i + 1)
+			operators.remove_at(i)
+		else:
+			i += 1
 
+	# Second pass: addition and subtraction, left to right.
+	var result: float = values[0]
+	for j in range(operators.size()):
+		if operators[j] == "+":
+			result += values[j + 1]
+		else:
+			result -= values[j + 1]
 		if not is_finite(result) or absf(result) > 999999999999.0:
 			return null
 
